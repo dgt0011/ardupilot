@@ -6,16 +6,20 @@
 
 #define RCINPUT_UDP_DEF_PORT 777
 
-class Linux::RCInput_UDP : public Linux::RCInput
+namespace Linux {
+
+class RCInput_UDP : public RCInput
 {
 public:
     RCInput_UDP();
-    void init();
-    void _timer_tick(void);
+    void init() override;
+    void _timer_tick(void) override;
 private:
     SocketAPM   _socket{true};
     uint16_t     _port;
-    struct rc_udp_packet _buf;
+    struct rc_udp_packet_v3 _buf;
     uint64_t _last_buf_ts;
     uint16_t _last_buf_seq;
 };
+
+}

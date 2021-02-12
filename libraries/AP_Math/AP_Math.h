@@ -1,162 +1,299 @@
 #pragma once
 
-#include "definitions.h"
-
+#include <cmath>
 #include <limits>
+#include <stdint.h>
 #include <type_traits>
 
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
-#include <math.h>
-#include <stdint.h>
 
+#include "definitions.h"
+#include "crc.h"
+#include "matrix3.h"
+#include "polygon.h"
+#include "quaternion.h"
 #include "rotations.h"
 #include "vector2.h"
 #include "vector3.h"
-#include "matrix3.h"
-#include "quaternion.h"
-#include "polygon.h"
-#include "edc.h"
-#include <AP_Param/AP_Param.h>
+#include "spline5.h"
 #include "location.h"
-
+#include "control.h"
 
 // define AP_Param types AP_Vector3f and Ap_Matrix3f
 AP_PARAMDEFV(Vector3f, Vector3f, AP_PARAM_VECTOR3F);
 
-// are two floats equal
-static inline bool is_equal(const float fVal1, const float fVal2) { return fabsf(fVal1 - fVal2) < FLT_EPSILON ? true : false; }
+/*
+ * Check whether two floats are equal
+ */
+template <typename Arithmetic1, typename Arithmetic2>
+typename std::enable_if<std::is_integral<typename std::common_type<Arithmetic1, Arithmetic2>::type>::value ,bool>::type
+is_equal(const Arithmetic1 v_1, const Arithmetic2 v_2);
 
-// is a float is zero
-static inline bool is_zero(const float fVal1) { return fabsf(fVal1) < FLT_EPSILON ? true : false; }
+template <typename Arithmetic1, typename Arithmetic2>
+typename std::enable_if<std::is_floating_point<typename std::common_type<Arithmetic1, Arithmetic2>::type>::value, bool>::type
+is_equal(const Arithmetic1 v_1, const Arithmetic2 v_2);
 
-// a varient of asin() that always gives a valid answer.
-float           safe_asin(float v);
+/* 
+ * @brief: Check whether a float is zero
+ */
+template <typename T>
+inline bool is_zero(const T fVal1) {
+    static_assert(std::is_floating_point<T>::value || std::is_base_of<T,AP_Float>::value,
+                  "Template parameter not of type float");
+    return (fabsf(static_cast<float>(fVal1)) < FLT_EPSILON);
+}
 
-// a varient of sqrt() that always gives a valid answer.
-float           safe_sqrt(float v);
+/* 
+ * @brief: Check whether a float is greater than zero
+ */
+template <typename T>
+inline bool is_positive(const T fVal1) {
+    static_assert(std::is_floating_point<T>::value || std::is_base_of<T,AP_Float>::value,
+                  "Template parameter not of type float");
+    return (static_cast<float>(fVal1) >= FLT_EPSILON);
+}
 
-// return determinant of square matrix
-float                   detnxn(const float C[], const uint8_t n);
 
-// Output inverted nxn matrix when returns true, otherwise matrix is Singular
-bool                    inversenxn(const float x[], float y[], const uint8_t n);
+/* 
+ * @brief: Check whether a float is less than zero
+ */
+template <typename T>
+inline bool is_negative(const T fVal1) {
+    static_assert(std::is_floating_point<T>::value || std::is_base_of<T,AP_Float>::value,
+                  "Template parameter not of type float");
+    return (static_cast<float>(fVal1) <= (-1.0 * FLT_EPSILON));
+}
 
-// invOut is an inverted 4x4 matrix when returns true, otherwise matrix is Singular
-bool                    inverse3x3(float m[], float invOut[]);
 
-// invOut is an inverted 3x3 matrix when returns true, otherwise matrix is Singular
-bool                    inverse4x4(float m[],float invOut[]);
+/*
+ * A variant of asin() that checks the input ranges and ensures a valid angle
+ * as output. If nan is given as input then zero is returned.
+ */
+template <typename T>
+float safe_asin(const T v);
+
+/*
+ * A variant of sqrt() that checks the input ranges and ensures a valid value
+ * as output. If a negative number is given then 0 is returned.  The reasoning
+ * is that a negative number for sqrt() in our code is usually caused by small
+ * numerical rounding errors, so the real input should have been zero
+ */
+template <typename T>
+float safe_sqrt(const T v);
 
 // matrix multiplication of two NxN matrices
-float* mat_mul(float *A, float *B, uint8_t n);
+template <typename T>
+void mat_mul(const T *A, const T *B, T *C, uint16_t n);
+
+// matrix inverse
+template <typename T>
+bool mat_inverse(const T *x, T *y, uint16_t dim) WARN_IF_UNUSED;
+
+// matrix identity
+template <typename T>
+void mat_identity(T *x, uint16_t dim);
 
 /*
-  wrap an angle in centi-degrees
+ * Constrain an angle to be within the range: -180 to 180 degrees. The second
+ * parameter changes the units. Default: 1 == degrees, 10 == dezi,
+ * 100 == centi.
  */
-int32_t wrap_360_cd(int32_t error);
-int32_t wrap_180_cd(int32_t error);
-float wrap_360_cd_float(float angle);
-float wrap_180_cd_float(float angle);
+template <typename T>
+T wrap_180(const T angle);
 
 /*
-  wrap an angle defined in radians to -PI ~ PI (equivalent to +- 180 degrees)
+ * Wrap an angle in centi-degrees. See wrap_180().
  */
-float wrap_PI(float angle_in_radians);
+template <typename T>
+T wrap_180_cd(const T angle);
 
 /*
-  wrap an angle defined in radians to the interval [0,2*PI)
+ * Constrain an euler angle to be within the range: 0 to 360 degrees. The
+ * second parameter changes the units. Default: 1 == degrees, 10 == dezi,
+ * 100 == centi.
  */
-float wrap_2PI(float angle);
+float wrap_360(const float angle);
+#ifdef ALLOW_DOUBLE_MATH_FUNCTIONS
+double wrap_360(const double angle);
+#endif
+int wrap_360(const int angle);
 
-// constrain a value
-// constrain a value
-static inline float constrain_float(float amt, float low, float high)
+int wrap_360_cd(const int angle);
+long wrap_360_cd(const long angle);
+float wrap_360_cd(const float angle);
+#ifdef ALLOW_DOUBLE_MATH_FUNCTIONS
+double wrap_360_cd(const double angle);
+#endif
+
+
+/*
+  wrap an angle in radians to -PI ~ PI (equivalent to +- 180 degrees)
+ */
+template <typename T>
+float wrap_PI(const T radian);
+
+/*
+ * wrap an angle in radians to 0..2PI
+ */
+template <typename T>
+float wrap_2PI(const T radian);
+
+/*
+ * Constrain a value to be within the range: low and high
+ */
+template <typename T>
+T constrain_value(const T amt, const T low, const T high);
+
+template <typename T>
+T constrain_value_line(const T amt, const T low, const T high, uint32_t line);
+
+#define constrain_float(amt, low, high) constrain_value_line(float(amt), float(low), float(high), uint32_t(__LINE__))
+
+inline int16_t constrain_int16(const int16_t amt, const int16_t low, const int16_t high)
 {
-	// the check for NaN as a float prevents propogation of
-	// floating point errors through any function that uses
-	// constrain_float(). The normal float semantics already handle -Inf
-	// and +Inf
-	if (isnan(amt)) {
-		return (low+high)*0.5f;
-	}
-	return ((amt)<(low)?(low):((amt)>(high)?(high):(amt)));
-}
-// constrain a int16_t value
-static inline int16_t constrain_int16(int16_t amt, int16_t low, int16_t high) {
-	return ((amt)<(low)?(low):((amt)>(high)?(high):(amt)));
+    return constrain_value(amt, low, high);
 }
 
-// constrain a int32_t value
-static inline int32_t constrain_int32(int32_t amt, int32_t low, int32_t high) {
-	return ((amt)<(low)?(low):((amt)>(high)?(high):(amt)));
+inline int32_t constrain_int32(const int32_t amt, const int32_t low, const int32_t high)
+{
+    return constrain_value(amt, low, high);
 }
 
-//matrix algebra
-bool inverse(float x[], float y[], uint16_t dim);
+inline int64_t constrain_int64(const int64_t amt, const int64_t low, const int64_t high)
+{
+    return constrain_value(amt, low, high);
+}
 
 // degrees -> radians
-static inline float radians(float deg) {
-	return deg * DEG_TO_RAD;
+static inline constexpr float radians(float deg)
+{
+    return deg * DEG_TO_RAD;
 }
 
 // radians -> degrees
-static inline float degrees(float rad) {
-	return rad * RAD_TO_DEG;
+static inline constexpr float degrees(float rad)
+{
+    return rad * RAD_TO_DEG;
 }
 
-// square
-static inline float sq(float v) {
-	return v*v;
+template<typename T>
+float sq(const T val)
+{
+    float v = static_cast<float>(val);
+    return v*v;
 }
 
-// 2D vector length
-static inline float pythagorous2(float a, float b) {
-	return sqrtf(sq(a)+sq(b));
+/*
+ * Variadic template for calculating the square norm of a vector of any
+ * dimension.
+ */
+template<typename T, typename... Params>
+float sq(const T first, const Params... parameters)
+{
+    return sq(first) + sq(parameters...);
 }
 
-// 3D vector length
-static inline float pythagorous3(float a, float b, float c) {
-	return sqrtf(sq(a)+sq(b)+sq(c));
+/*
+ * Variadic template for calculating the norm (pythagoras) of a vector of any
+ * dimension.
+ */
+template<typename T, typename U, typename... Params>
+float norm(const T first, const U second, const Params... parameters)
+{
+    return sqrtf(sq(first, second, parameters...));
 }
 
 template<typename A, typename B>
-static inline auto MIN(const A &one, const B &two) -> decltype(one < two ? one : two) {
+static inline auto MIN(const A &one, const B &two) -> decltype(one < two ? one : two)
+{
     return one < two ? one : two;
 }
 
 template<typename A, typename B>
-static inline auto MAX(const A &one, const B &two) -> decltype(one > two ? one : two) {
+static inline auto MAX(const A &one, const B &two) -> decltype(one > two ? one : two)
+{
     return one > two ? one : two;
 }
 
-inline uint32_t hz_to_nsec(uint32_t freq)
+inline constexpr uint32_t hz_to_nsec(uint32_t freq)
 {
-    return NSEC_PER_SEC / freq;
+    return AP_NSEC_PER_SEC / freq;
 }
 
-inline uint32_t nsec_to_hz(uint32_t nsec)
+inline constexpr uint32_t nsec_to_hz(uint32_t nsec)
 {
-    return NSEC_PER_SEC / nsec;
+    return AP_NSEC_PER_SEC / nsec;
 }
 
-inline uint32_t usec_to_nsec(uint32_t usec)
+inline constexpr uint32_t usec_to_nsec(uint32_t usec)
 {
-    return usec * NSEC_PER_USEC;
+    return usec * AP_NSEC_PER_USEC;
 }
 
-inline uint32_t nsec_to_usec(uint32_t nsec)
+inline constexpr uint32_t nsec_to_usec(uint32_t nsec)
 {
-    return nsec / NSEC_PER_USEC;
+    return nsec / AP_NSEC_PER_USEC;
 }
 
-inline uint32_t hz_to_usec(uint32_t freq)
+inline constexpr uint32_t hz_to_usec(uint32_t freq)
 {
-    return USEC_PER_SEC / freq;
+    return AP_USEC_PER_SEC / freq;
 }
 
-inline uint32_t usec_to_hz(uint32_t usec)
+inline constexpr uint32_t usec_to_hz(uint32_t usec)
 {
-    return USEC_PER_SEC / usec;
+    return AP_USEC_PER_SEC / usec;
 }
+
+/*
+  linear interpolation based on a variable in a range
+ */
+float linear_interpolate(float low_output, float high_output,
+                         float var_value,
+                         float var_low, float var_high);
+
+/* cubic "expo" curve generator 
+ * alpha range: [0,1] min to max expo
+ * input range: [-1,1]
+ */
+constexpr float expo_curve(float alpha, float input);
+
+/* throttle curve generator
+ * thr_mid: output at mid stick
+ * alpha: expo coefficient
+ * thr_in: [0-1]
+ */
+float throttle_curve(float thr_mid, float alpha, float thr_in);
+
+/* simple 16 bit random number generator */
+uint16_t get_random16(void);
+
+// generate a random float between -1 and 1, for use in SITL
+float rand_float(void);
+
+// generate a random Vector3f of size 1
+Vector3f rand_vec3f(void);
+
+// return true if two rotations are equal
+bool rotation_equal(enum Rotation r1, enum Rotation r2) WARN_IF_UNUSED;
+
+/*
+ * return a velocity correction (in m/s in NED) for a sensor's position given it's position offsets
+ * this correction should be added to the sensor NED measurement
+ * sensor_offset_bf is in meters in body frame (Foward, Right, Down)
+ * rot_ef_to_bf is a rotation matrix to rotate from earth-frame (NED) to body frame
+ * angular_rate is rad/sec
+ */
+Vector3f get_vel_correction_for_sensor_offset(const Vector3f &sensor_offset_bf, const Matrix3f &rot_ef_to_bf, const Vector3f &angular_rate);
+
+/*
+  calculate a low pass filter alpha value
+ */
+float calc_lowpass_alpha_dt(float dt, float cutoff_freq);
+
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+// fill an array of float with NaN, used to invalidate memory in SITL
+void fill_nanf(float *f, uint16_t count);
+#endif
 

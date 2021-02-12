@@ -1,5 +1,3 @@
-// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -37,6 +35,7 @@
 
 #include <AP_Common/AP_Common.h>
 #include <AP_HAL/AP_HAL.h>
+#include <AP_Logger/AP_Logger.h>
 #include <AP_Math/AP_Math.h>
 
 extern const AP_HAL::HAL& hal;
@@ -69,13 +68,11 @@ extern const AP_HAL::HAL& hal;
 
 // constructor
 AP_AutoTune::AP_AutoTune(ATGains &_gains, ATType _type,
-                         const AP_Vehicle::FixedWing &parms,
-                         DataFlash_Class &_dataflash) :
+                         const AP_Vehicle::FixedWing &parms) :
     running(false),
     current(_gains),
     type(_type),
     aparm(parms),
-    dataflash(_dataflash),
     saturated_surfaces(false)
 {}
 
@@ -90,7 +87,7 @@ AP_AutoTune::AP_AutoTune(ATGains &_gains, ATType _type,
   auto-tuning table. This table gives the starting values for key
   tuning parameters based on a user chosen AUTOTUNE_LEVEL parameter
   from 1 to 10. Level 1 is a very soft tune. Level 10 is a very
-  agressive tune.
+  aggressive tune.
  */
 static const struct {
     float tau;
@@ -270,19 +267,20 @@ void AP_AutoTune::check_save(void)
  */
 void AP_AutoTune::log_param_change(float v, const char *suffix)
 {
-    if (!dataflash.logging_started()) {
+    AP_Logger *logger = AP_Logger::get_singleton();
+    if (!logger->logging_started()) {
         return;
     }
     char key[AP_MAX_NAME_SIZE+1];
     if (type == AUTOTUNE_ROLL) {
-        strncpy(key, "RLL2SRV_", 8);
+        strncpy(key, "RLL2SRV_", 9);
         strncpy(&key[8], suffix, AP_MAX_NAME_SIZE-8);
     } else {
-        strncpy(key, "PTCH2SRV_", 9);
+        strncpy(key, "PTCH2SRV_", 10);
         strncpy(&key[9], suffix, AP_MAX_NAME_SIZE-9);
     }
     key[AP_MAX_NAME_SIZE] = 0;
-    dataflash.Log_Write_Parameter(key, v);
+    logger->Write_Parameter(key, v);
 }
 
 /*
@@ -330,7 +328,8 @@ void AP_AutoTune::save_gains(const ATGains &v)
 
 void AP_AutoTune::write_log(float servo, float demanded, float achieved)
 {
-    if (!dataflash.logging_started()) {
+    AP_Logger *logger = AP_Logger::get_singleton();
+    if (!logger->logging_started()) {
         return;
     }
 
@@ -344,5 +343,5 @@ void AP_AutoTune::write_log(float servo, float demanded, float achieved)
         achieved   : achieved,
         P          : current.P.get()
     };
-    dataflash.WriteBlock(&pkt, sizeof(pkt));
+    logger->WriteBlock(&pkt, sizeof(pkt));
 }

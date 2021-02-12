@@ -26,13 +26,22 @@ class OpticalFlow_backend
 
 public:
     // constructor
-    OpticalFlow_backend(OpticalFlow &_frontend) : frontend(_frontend) {}
-
+    OpticalFlow_backend(OpticalFlow &_frontend);
+    virtual ~OpticalFlow_backend(void);
+    
     // init - initialise sensor
     virtual void init() = 0;
 
     // read latest values from sensor and fill in x,y and totals.
     virtual void update() = 0;
+
+    // handle optical flow mavlink messages
+    virtual void handle_msg(const mavlink_message_t &msg) {}
+
+#if HAL_MSP_OPTICALFLOW_ENABLED
+    // handle optical flow msp messages
+    virtual void handle_msp(const MSP::msp_opflow_data_message_t &pkt) {}
+#endif
 
 protected:
     // access to frontend
@@ -46,4 +55,13 @@ protected:
 
     // get the yaw angle in radians
     float _yawAngleRad(void) const { return radians(float(frontend._yawAngle_cd) * 0.01f); }
+
+    // apply yaw angle to a vector
+    void _applyYaw(Vector2f &v);
+
+    // get ADDR parameter value
+    uint8_t get_address(void) const { return frontend._address; }
+    
+    // semaphore for access to shared frontend data
+    HAL_Semaphore _sem;
 };

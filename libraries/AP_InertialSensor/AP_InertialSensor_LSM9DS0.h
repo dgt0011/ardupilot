@@ -7,22 +7,30 @@
 
 #include "AP_InertialSensor.h"
 #include "AP_InertialSensor_Backend.h"
+#include <Filter/LowPassFilter2p.h>
 
 class AP_InertialSensor_LSM9DS0 : public AP_InertialSensor_Backend
 {
 public:
     virtual ~AP_InertialSensor_LSM9DS0() { }
-    bool update();
+    void start(void) override;
+    bool update() override;
 
     static AP_InertialSensor_Backend *probe(AP_InertialSensor &imu,
-                                            AP_HAL::OwnPtr<AP_HAL::SPIDevice> dev_gyro,
-                                            AP_HAL::OwnPtr<AP_HAL::SPIDevice> dev_accel);
+                                            AP_HAL::OwnPtr<AP_HAL::Device> dev_gyro,
+                                            AP_HAL::OwnPtr<AP_HAL::Device> dev_accel,
+                                            enum Rotation rotation_a,
+                                            enum Rotation rotation_g,
+                                            enum Rotation rotation_gH);
 
 private:
     AP_InertialSensor_LSM9DS0(AP_InertialSensor &imu,
-                              AP_HAL::OwnPtr<AP_HAL::SPIDevice> dev_gyro,
-                              AP_HAL::OwnPtr<AP_HAL::SPIDevice> dev_accel,
-                              int drdy_pin_num_a, int drdy_pin_num_b);
+                              AP_HAL::OwnPtr<AP_HAL::Device> dev_gyro,
+                              AP_HAL::OwnPtr<AP_HAL::Device> dev_accel,
+                              int drdy_pin_num_a, int drdy_pin_num_b,
+                              enum Rotation rotation_a,
+                              enum Rotation rotation_g,
+                              enum Rotation rotation_gH);
 
     struct PACKED sensor_raw_data {
         int16_t x;
@@ -55,13 +63,16 @@ private:
     void _gyro_init();
     void _accel_init();
 
+    void _gyro_disable_i2c();
+    void _accel_disable_i2c();
+
     void _set_gyro_scale(gyro_scale scale);
     void _set_accel_scale(accel_scale scale);
 
     uint8_t _register_read_xm(uint8_t reg);
     uint8_t _register_read_g(uint8_t reg);
-    void _register_write_xm(uint8_t reg, uint8_t val);
-    void _register_write_g(uint8_t reg, uint8_t val);
+    void _register_write_xm(uint8_t reg, uint8_t val, bool checked=false);
+    void _register_write_g(uint8_t reg, uint8_t val, bool checked=false);
 
     void _read_data_transaction_a();
     void _read_data_transaction_g();
@@ -70,8 +81,8 @@ private:
     void        _dump_registers();
 #endif
 
-    AP_HAL::OwnPtr<AP_HAL::SPIDevice> _dev_gyro;
-    AP_HAL::OwnPtr<AP_HAL::SPIDevice> _dev_accel;
+    AP_HAL::OwnPtr<AP_HAL::Device> _dev_gyro;
+    AP_HAL::OwnPtr<AP_HAL::Device> _dev_accel;
     AP_HAL::Semaphore *_spi_sem;
 
     /*
@@ -88,4 +99,18 @@ private:
     int _drdy_pin_num_g;
     uint8_t _gyro_instance;
     uint8_t _accel_instance;
+    float _temperature;
+    uint8_t _temp_counter;
+    LowPassFilter2pFloat _temp_filter;
+
+    // gyro whoami
+    uint8_t whoami_g;
+    
+    /*
+      for boards that have a separate LSM303D and L3GD20 there can be
+      different rotations for each
+     */
+    enum Rotation _rotation_a;
+    enum Rotation _rotation_g;  // for L3GD20
+    enum Rotation _rotation_gH; // for L3GD20H
 };

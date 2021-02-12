@@ -1,5 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,19 +19,19 @@
 
 #include "NotifyDevice.h"
 
-#define HIGH 1
-#define LOW 0
-
 class AP_BoardLED: public NotifyDevice
 {
 public:
     // initialise the LED driver
-    bool init(void);
+    bool init(void) override;
 
     // should be called at 50Hz
-    void update(void);
+    void update(void) override;
 
 private:
+#if (defined(HAL_GPIO_A_LED_PIN) && defined(HAL_GPIO_B_LED_PIN) && \
+     defined(HAL_GPIO_C_LED_PIN))
     // counter incremented at 50Hz
     uint8_t _counter;
+#endif
 };

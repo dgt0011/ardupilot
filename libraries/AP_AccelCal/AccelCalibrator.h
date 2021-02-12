@@ -1,4 +1,3 @@
-/// -*- tab-width: 4; Mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*-
 /*
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -11,9 +10,8 @@
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+#pragma once
 
-#ifndef __ACCELCALIBRATOR_H__
-#define __ACCELCALIBRATOR_H__
 #include <AP_Math/AP_Math.h>
 #include <AP_Math/vectorN.h>
 
@@ -134,7 +132,7 @@ private:
     // determines if the result is acceptable
     bool accept_result() const;
 
-    // returns number of paramters are required for selected Fit type
+    // returns number of parameters are required for selected Fit type
     uint8_t get_num_params() const;
 
     // Function related to Gauss Newton Least square regression process
@@ -144,4 +142,3 @@ private:
     void calc_jacob(const Vector3f& sample, const struct param_t& params, VectorP& ret) const;
     void run_fit(uint8_t max_iterations, float& fitness);
 };
-#endif //__ACCELCALIBRATOR_H__

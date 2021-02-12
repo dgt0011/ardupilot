@@ -40,28 +40,25 @@ def configure(cfg):
 def libbenchmark(bld):
     prefix_node = bld.bldnode.make_node(bld.env.GBENCHMARK_PREFIX_REL)
 
-    gbenchmark_cmake = bld(
-        features='cmake_configure',
+    gbenchmark = bld.cmake(
+        name='gbenchmark',
         cmake_src='modules/gbenchmark',
         cmake_bld='gbenchmark_build',
-        name='gbenchmark',
         cmake_vars=dict(
             CMAKE_BUILD_TYPE='Release',
             CMAKE_INSTALL_PREFIX=prefix_node.abspath(),
-        )
+            BENCHMARK_ENABLE_GTEST_TESTS='OFF',
+            BENCHMARK_ENABLE_TESTING='OFF',
+        ),
     )
 
     prefix_node = bld.bldnode.make_node(bld.env.GBENCHMARK_PREFIX_REL)
     output_paths = (
         'lib/libbenchmark.a',
         'include/benchmark/benchmark.h',
-        'include/benchmark/macros.h',
-        'include/benchmark/benchmark_api.h',
-        'include/benchmark/reporter.h',
     )
     outputs = [prefix_node.make_node(path) for path in output_paths]
-    gbenchmark_cmake.cmake_build('install', target=outputs)
-
+    gbenchmark.build('install', target=outputs)
 
 @feature('gbenchmark')
 @before_method('process_use')
